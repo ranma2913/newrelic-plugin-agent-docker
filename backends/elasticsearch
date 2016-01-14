@@ -1,0 +1,4 @@
+name: ClusterName
+host: localhost
+port: 9200
+scheme: http
