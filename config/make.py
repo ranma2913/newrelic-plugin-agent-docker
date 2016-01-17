@@ -1,4 +1,5 @@
 #!/usr/local/bin/python
+import glob
 import os
 import sys
 import yaml
@@ -9,6 +10,7 @@ from copy import deepcopy
 import logging
 from fuzzywuzzy import fuzz
 import argparse
+
 
 def pprint(obj):
     return yaml.safe_dump(obj,
@@ -65,11 +67,12 @@ class AgentConfig(object):
         """
         get all the default configurations from the defaults directory
         """
-        for default in os.listdir(os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH)):
-            with open(os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH, default), "r") as f:
-                logging.debug("loading %s from %s", default, f.name)
+        for path in glob.glob("%s/*.yml" % os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH)):
+            with open(os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH, path), "r") as f:
+                logging.debug("loading %s from %s", path, f.name)
                 default_config = yaml.load(f)
-                default_config['name'] = default
+                name, _ = os.path.splitext(os.path.basename(path))
+                default_config['name'] = name
                 yield default_config
 
     def _default_configuration(self, backend_type):
@@ -101,7 +104,7 @@ class AgentConfig(object):
         container_name = container['Names'][0].strip("/")
         default_config['name'] = "{container_name} @ {host}".format(host=default_config['host'],
                                                                     container_name=container_name)
-        default_config['port'] = int(public_ports[0]['HostPort'])
+        default_config['port'] = public_ports[0]['HostPort']
         logging.debug("generated default config for containe id: %s: \n%s", container['Id'], pprint(default_config))
         return default_config
 
@@ -131,10 +134,12 @@ class AgentConfig(object):
         finds all the base backends configured by the user
         """
         base = defaultdict(list)
-        for name in os.listdir(os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH)):
-            with open(os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH, name)) as f:
-                base[name] = yaml.load(f)
-                logging.debug("loaded base backend %s: \n%s", name, pprint(base[name]))
+        for path in glob.glob("%s/*.yml" % os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH)):
+            with open(os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH, path)) as f:
+                name, _ = os.path.splitext(os.path.basename(path))
+                conf = yaml.load(f)
+                base[name] = conf if isinstance(conf, list) else [conf]
+                logging.debug("loaded base backend %s: \n%s", path, pprint(base[path]))
         return base
 
     def set_application(self, app_name, app):

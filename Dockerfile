@@ -1,4 +1,4 @@
-FROM sxmichael/python-docker
+FROM gici/python
 MAINTAINER Oded Lazar <odedlaz@gmail.com>
 RUN apt-get update && apt-get install -y libpq-dev
 RUN pip install psycopg2 newrelic-plugin-agent docker-py fuzzywuzzy python-Levenshtein

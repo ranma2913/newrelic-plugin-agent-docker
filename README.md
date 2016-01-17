@@ -27,8 +27,8 @@ docker run -d --net=host -v /var/run/docker.sock:/var/run/docker.sock:ro -e NEWR
 
   1. Create a mountable data directory `<data-dir>` on the host.
 
-  2. Create a backend configuration file at `<backends-dir>/<backend_name>`. 
-     for example, create an elasticsearch configuration file at ```<backends-dir>/elasticsearch```:
+  2. Create a backend configuration file at `<backends-dir>/<backend_name>.yml`. 
+     for example, create an elasticsearch configuration file at ```<backends-dir>/elasticsearch.yml```:
 
 ```yml
 name: my-elasticsearch-cluster
