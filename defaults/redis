@@ -1,0 +1,4 @@
+name: localhost
+host: localhost
+port: 6379
+db_count: 16
