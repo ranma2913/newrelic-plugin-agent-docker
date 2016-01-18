@@ -104,7 +104,7 @@ class AgentConfig(object):
         container_name = container['Names'][0].strip("/")
         default_config['name'] = "{container_name} @ {host}".format(host=default_config['host'],
                                                                     container_name=container_name)
-        default_config['port'] = public_ports[0]['HostPort']
+        default_config['port'] = int(public_ports[0]['HostPort'])
         logging.debug("generated default config for containe id: %s: \n%s", container['Id'], pprint(default_config))
         return default_config
 
