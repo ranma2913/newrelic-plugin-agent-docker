@@ -16,9 +16,8 @@ RUN pip install psycopg2 \
 RUN mkdir -p /etc/supervisor/conf.d/ && \
     mkdir -p /var/log/supervisor/
 
-ADD supervisord.conf /etc/supervisor/supervisord.conf
-ADD supervisord-*.conf /etc/supervisor/conf.d/
-
+ADD supervisor/supervisord.conf /etc/supervisor/supervisord.conf
+ADD supervisor/supervisord-*.conf /etc/supervisor/conf.d/
 
 # newrelic-plugin-agent
 ADD newrelic-plugin-agent-discover.sh /etc/newrelic/
