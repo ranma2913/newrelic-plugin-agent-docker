@@ -1,7 +1,8 @@
 #!/bin/sh
-
+echo "newrelic-plugin-agent discover service started!"
+# start the other daemon
 python config/make.py > /etc/newrelic/newrelic-plugin-agent.cfg
-supervisord
+supervisorctl start newrelic-plugin-agent
 
 while [ true ]
 do
@@ -12,5 +13,5 @@ do
         mv /etc/newrelic/newrelic-plugin-agent.cfg.new /etc/newrelic/newrelic-plugin-agent.cfg
         supervisorctl restart newrelic-plugin-agent
     fi
-    sleep 1
+    sleep 3
 done
