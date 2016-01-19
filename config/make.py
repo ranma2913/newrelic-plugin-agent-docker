@@ -55,7 +55,7 @@ class AgentConfig(object):
     def __init__(self, base_dir, dry_run=False):
         self._base_dir = base_dir
         self._config = yaml.load(file(os.path.join(args.dir, AgentConfig.CONFIG_FILE), "r"))
-        self._cli = docker.Client("unix://var/run/docker.sock")
+        self._cli = docker.Client("unix://var/run/docker.sock", version="auto")
 
         if dry_run:
             self.save = lambda *a, **kw: logging.debug("! dry run. not saving: \n%s", pprint(self._config))
