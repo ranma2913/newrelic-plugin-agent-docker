@@ -2,3 +2,7 @@ name: elasticsearch
 host: localhost
 port: 9200
 scheme: http
+# for basic http authentication
+# username: <username>
+# password: <the password>
+
