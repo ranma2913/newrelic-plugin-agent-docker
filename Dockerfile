@@ -20,12 +20,12 @@ ADD supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 ADD supervisor/supervisord-*.conf /etc/supervisor/conf.d/
 
 # newrelic-plugin-agent
-ADD newrelic-plugin-agent-discover.sh /etc/newrelic/
+ADD newrelic-plugin-agent-discover.sh run.py /etc/newrelic/
 ADD config/newrelic-plugin-agent.cfg config/make.py /etc/newrelic/config/
 
 # add default configurations
 ADD defaults /etc/newrelic/defaults/
-
+ADD plugins /etc/newrelic/plugins/
 WORKDIR "/etc/newrelic"
 
 VOLUME ["/etc/newrelic/backends"]
