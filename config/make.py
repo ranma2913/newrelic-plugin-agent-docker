@@ -23,7 +23,8 @@ def merge_backends(base, overrides):
     merged = defaultdict(list, overrides)
     logging.debug("merging base and override")
     for name, item in zip_dict(*base.items()):
-        match = filter(lambda oi: (oi['host'], oi['port']) == (item['host'], item['port']), overrides[name])
+        match = filter(lambda oi: (oi.get("host", ""), oi.get("port", -1)) ==
+                                  (item.get("host", ""), item.get("port", -1)), overrides[name])
         if not match:
             logging.debug("adding base configuration for an '%s' item: %s", name, item)
             merged[name].append(item)
@@ -54,8 +55,9 @@ class AgentConfig(object):
 
     def __init__(self, base_dir, dry_run=False):
         self._base_dir = base_dir
-        self._config = yaml.load(file(os.path.join(args.dir, AgentConfig.CONFIG_FILE), "r"))
         self._cli = docker.Client("unix://var/run/docker.sock", version="auto")
+        self._config = yaml.load(file(os.path.join(args.dir, AgentConfig.CONFIG_FILE), "r"))
+        self.hostname = self._cli.info()['Name']
 
         if dry_run:
             self.save = lambda *a, **kw: logging.debug("! dry run. not saving: \n%s", pprint(self._config))
@@ -95,16 +97,16 @@ class AgentConfig(object):
         :param container:
         """
 
-        public_ports = self._cli.port(container['Id'], default_config['port'])
+        public_ports = self._cli.port(container['Id'], default_config.get('port', -1))
 
         if not public_ports:
             logging.debug("couldn't find public ports for container id: %s", container['Id'])
-            return
 
         container_name = container['Names'][0].strip("/")
         default_config['name'] = "{container_name} @ {host}".format(host=default_config['host'],
                                                                     container_name=container_name)
-        default_config['port'] = int(public_ports[0]['HostPort'])
+        if public_ports:
+            default_config['port'] = int(public_ports[0]['HostPort'])
         logging.debug("generated default config for containe id: %s: \n%s", container['Id'], pprint(default_config))
         return default_config
 
@@ -186,8 +188,8 @@ if __name__ == "__main__":
     if not args.key:
         logging.fatal("you need to set the NEWRELIC_KEY environment variable!")
         sys.exit(2)
-
     config.set_license(args.key)
+    config.set_application("docker", [{'name': "docker @ {}".format(config.hostname)}])
     for backend_name, backends in merge_backends(config.base_backends(), config.discover()).iteritems():
         config.set_application(backend_name, backends)
 
