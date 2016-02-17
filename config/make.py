@@ -18,22 +18,55 @@ def pprint(obj):
                           allow_unicode=True,
                           default_flow_style=False)
 
+def one(iterable):
+    """
+    return one or None
+    """
+    if len(iterable) <= 0:
+         return
+    if len(iterable) > 1:
+        return
+    return iterable[0]
+
+class DockerClient(docker.Client):
+    def __init__(self, *args, **kwargs):
+        super(DockerClient, self).__init__(*args, **kwargs)
+        self.hostname = self.info()['Name']
+        self.containers = self.containers()
+        self.images = self.images()
+
+    def get_image_by_name(self, image_name):
+        """
+        gets an image by the name of the image
+        """
+        image_id = one([x['ImageID'] for x in self.containers if x['Image'] == image_name])
+        return self.get_image_by_id(image_id)
+
+    def get_image_by_id(self, image_id):
+        """
+        get an image by its id
+        """
+        image = one(filter(lambda x: x['Id'] == image_id, self.images))
+        return image
+
+    def image_labels(self, image_id):
+        return self.inspect_image(image_id).get('ContainerConfig', {}).get('Labels', {})
 
 def merge_backends(base, overrides):
-    merged = defaultdict(list, overrides)
+    """
+    merged the backends using the following merge policy:
+    if a backend exists in the backends directory -> use it.
+    otherwise, use the discovered one.
+    """
+    merged = defaultdict(list, base)
     logging.debug("merging base and override")
-    for name, item in zip_dict(*base.items()):
-        match = filter(lambda oi: (oi.get("host", ""), oi.get("port", -1)) ==
-                                  (item.get("host", ""), item.get("port", -1)), overrides[name])
-        if not match:
-            logging.debug("adding base configuration for an '%s' item: %s", name, item)
-            merged[name].append(item)
-        else:
-            logging.debug("found base configuration for an '%s' item. using it instead of the default: \n%s", name,
-                          pprint(item))
-            match[0].update(item)
+    for key, value in overrides.iteritems():
+        if key in base:
+            logging.debug("{key} already exist in base backends. not discovering.".format(key=key))
+            continue
+        logging.debug("{key} wasn't configured, using discovered one: {value}".format(key=key, value=value))
+        merged[key] = value
     return merged
-
 
 def zip_dict(*args):
     """
@@ -54,13 +87,15 @@ class AgentConfig(object):
     DEFAULTS_PATH = "defaults"
 
     def __init__(self, base_dir, dry_run=False):
+        """
+        :param base_dir: the directory to find the config dir
+        """
         self._base_dir = base_dir
-        self._cli = docker.Client("unix://var/run/docker.sock", version="auto")
-        self._config = yaml.load(file(os.path.join(args.dir, AgentConfig.CONFIG_FILE), "r"))
-        self.hostname = self._cli.info()['Name']
-
-        if dry_run:
-            self.save = lambda *a, **kw: logging.debug("! dry run. not saving: \n%s", pprint(self._config))
+        self._cli = DockerClient("unix://var/run/docker.sock", version="auto")
+        self._defaults = self._get_defaults()
+        self._config = yaml.load(file(os.path.join(args.dir,
+                                                   AgentConfig.CONFIG_FILE),
+                                      "r"))
 
     def __str__(self):
         return pprint(self._config)
@@ -77,26 +112,12 @@ class AgentConfig(object):
                 default_config['name'] = name
                 yield default_config
 
-    def _default_configuration(self, backend_type):
-        """
-        get the default configuration for a given backend_type
-        tries to find a backend with a similar name using fuzzy matching
-        :param backend_type: the type of the agent backend
-        """
-        for default_config in self._get_defaults():
-            logging.debug("fuzzy matching %s and %s", backend_type, default_config['name'])
-            if fuzz.partial_ratio(backend_type, default_config['name']) > 90:
-                logging.debug("found default configuration for backend type %s -> %s", backend_type,
-                              default_config['name'])
-                return default_config
-
     def _generate_default_configuration(self, container, default_config):
         """
         generates a default config based on the given default configuration
         :param default_config:
         :param container:
         """
-
         public_ports = self._cli.port(container['Id'], default_config.get('port', -1))
 
         if not public_ports:
@@ -110,22 +131,61 @@ class AgentConfig(object):
         logging.debug("generated default config for containe id: %s: \n%s", container['Id'], pprint(default_config))
         return default_config
 
+    def _discover_by_image_name(self, image_name, image):
+        """
+        get the default configuration for a given image
+        tries to find a backend with a similar name using fuzzy matching
+        """
+        for default_config in self._defaults:
+            logging.debug("fuzzy matching %s and %s", image_name, default_config['name'])
+            if fuzz.partial_ratio(image_name, default_config['name']) > 90:
+                return default_config
+
+    def _discover_by_metadata(self, image_name, image):
+        """
+        discovers default configuration based on container metadata label com.newrelic.plugin
+        """
+        labels = self._cli.image_labels(image['Id'])
+        if not labels or "com.newrelic.plugin" not in labels:
+            return
+        plugin_name = labels["com.newrelic.plugin"]
+        logging.debug("%s has a plugin label: %s",
+                      image_name,
+                      plugin_name)
+        for default_config in self._defaults:
+            if fuzz.partial_ratio(plugin_name, default_config['name']) > 90:
+                return default_config
+
+    def _find_plugin_configuration(self, image_name):
+        """
+        try to find the plugin using its image name
+        """
+        image = self._cli.get_image_by_name(image_name)
+        if not image:
+            logging.debug("couldn't find image %s by name", image_name)
+            return
+
+        for f in [self._discover_by_metadata, self._discover_by_image_name]:
+            default_config = f(image_name, image)
+            if default_config:
+                logging.debug("found default configuration for image name %s -> %s",
+                              image_name,
+                              default_config['name'])
+                return default_config
+        logging.debug("image: %s doesn't have a default config.", image_name)
+
     def discover(self):
         """
         tries to discover backends to monitor from images running on this server
         """
         discovered = defaultdict(list)
-        containers = sorted(self._cli.containers(), key=lambda c: c['Image'])
-        host = self._cli.info()['Name']
-
+        containers = sorted(self._cli.containers, key=lambda c: c['Image'])
         for image_name, containers in groupby(containers, key=lambda c: c['Image']):
-            logging.debug("found running images for: %s", image_name)
-            default_config = self._default_configuration(image_name)
+            default_config = self._find_plugin_configuration(image_name)
             if not default_config:
-                logging.debug("image: %s doesn't have a default config. skipping.", image_name)
                 continue
             name = default_config.pop('name')
-            default_config['host'] = host
+            default_config['host'] = self._cli.hostname
             configurations = (self._generate_default_configuration(c, deepcopy(default_config)) for c in containers)
             discovered[name] = filter(None, configurations)
 
@@ -136,12 +196,18 @@ class AgentConfig(object):
         finds all the base backends configured by the user
         """
         base = defaultdict(list)
-        for path in glob.glob("%s/*.yml" % os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH)):
-            with open(os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH, path)) as f:
+        backends_dir = os.path.join(self._base_dir, AgentConfig.BACKENDS_PATH)
+        for path in glob.glob("%s/*.yml" % backends_dir):
+            filepath = os.path.join(self._base_dir,
+                                    AgentConfig.BACKENDS_PATH,
+                                    path)
+            with open(filepath) as f:
                 name, _ = os.path.splitext(os.path.basename(path))
                 conf = yaml.load(f)
                 base[name] = conf if isinstance(conf, list) else [conf]
-                logging.debug("loaded base backend %s: \n%s", path, pprint(base[path]))
+                logging.debug("loaded base backend %s: \n%s",
+                              path,
+                              pprint(base[name]))
         return base
 
     def set_application(self, app_name, app):
@@ -150,7 +216,10 @@ class AgentConfig(object):
         :param app_name: the name of the app
         :param app: the app to set
         """
-        logging.debug("setting application: %s, app: \n%s", app_name, pprint(app))
+        app = app if isinstance(app, list) else [app]
+        logging.debug("setting application: %s, app: \n%s",
+                      app_name,
+                      pprint(app))
         self._config['Application'][app_name] = app
 
     def set_license(self, key):
@@ -172,8 +241,6 @@ def parse_args():
 
     parser.add_argument("--verbose", action="store_true", default=bool(os.environ.get("DEBUG", False)))
 
-    parser.add_argument("--dry-run", action="store_true", default=bool(os.environ.get("DRY_RUN", False)))
-
     return parser.parse_args()
 
 
@@ -189,8 +256,9 @@ if __name__ == "__main__":
         logging.fatal("you need to set the NEWRELIC_KEY environment variable!")
         sys.exit(2)
     config.set_license(args.key)
-    config.set_application("docker", [{'name': "docker @ {}".format(config.hostname)}])
-    for backend_name, backends in merge_backends(config.base_backends(), config.discover()).iteritems():
+    config.set_application("docker", {'name': "docker @ {}".format(config._cli.hostname)})
+    backends = merge_backends(config.base_backends(), config.discover())
+    for backend_name, backends in backends.iteritems():
         config.set_application(backend_name, backends)
 
     print(config)
