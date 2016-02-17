@@ -86,7 +86,7 @@ class AgentConfig(object):
     BACKENDS_PATH = "backends"
     DEFAULTS_PATH = "defaults"
 
-    def __init__(self, base_dir, dry_run=False):
+    def __init__(self, base_dir):
         """
         :param base_dir: the directory to find the config dir
         """
@@ -251,7 +251,7 @@ if __name__ == "__main__":
         logging.basicConfig(format='$ %(message)s')
         logging.root.setLevel(logging.DEBUG)
 
-    config = AgentConfig(args.dir, args.dry_run)
+    config = AgentConfig(args.dir)
     if not args.key:
         logging.fatal("you need to set the NEWRELIC_KEY environment variable!")
         sys.exit(2)
