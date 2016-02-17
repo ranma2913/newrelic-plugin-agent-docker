@@ -39,7 +39,7 @@ class DockerClient(docker.Client):
         """
         gets an image by the name of the image
         """
-        image_id = one([x['ImageID'] for x in self.containers if x['Image'] == image_name])
+        image_id = [x['ImageID'] for x in self.containers if x['Image'] == image_name][0]
         return self.get_image_by_id(image_id)
 
     def get_image_by_id(self, image_id):
@@ -92,7 +92,6 @@ class AgentConfig(object):
         """
         self._base_dir = base_dir
         self._cli = DockerClient("unix://var/run/docker.sock", version="auto")
-        self._defaults = self._get_defaults()
         self._config = yaml.load(file(os.path.join(args.dir,
                                                    AgentConfig.CONFIG_FILE),
                                       "r"))
@@ -128,7 +127,7 @@ class AgentConfig(object):
                                                                     container_name=container_name)
         if public_ports:
             default_config['port'] = int(public_ports[0]['HostPort'])
-        logging.debug("generated default config for containe id: %s: \n%s", container['Id'], pprint(default_config))
+        logging.debug("generated default config for container id: %s: \n%s", container['Id'], pprint(default_config))
         return default_config
 
     def _discover_by_image_name(self, image_name, image):
@@ -136,7 +135,7 @@ class AgentConfig(object):
         get the default configuration for a given image
         tries to find a backend with a similar name using fuzzy matching
         """
-        for default_config in self._defaults:
+        for default_config in self._get_defaults():
             logging.debug("fuzzy matching %s and %s", image_name, default_config['name'])
             if fuzz.partial_ratio(image_name, default_config['name']) > 90:
                 return default_config
@@ -146,13 +145,15 @@ class AgentConfig(object):
         discovers default configuration based on container metadata label com.newrelic.plugin
         """
         labels = self._cli.image_labels(image['Id'])
+        logging.debug("discovering using metadata for %s, labels: %s", image_name, pprint(labels))
         if not labels or "com.newrelic.plugin" not in labels:
             return
         plugin_name = labels["com.newrelic.plugin"]
+
         logging.debug("%s has a plugin label: %s",
                       image_name,
                       plugin_name)
-        for default_config in self._defaults:
+        for default_config in self._get_defaults():
             if fuzz.partial_ratio(plugin_name, default_config['name']) > 90:
                 return default_config
 
@@ -181,8 +182,10 @@ class AgentConfig(object):
         discovered = defaultdict(list)
         containers = sorted(self._cli.containers, key=lambda c: c['Image'])
         for image_name, containers in groupby(containers, key=lambda c: c['Image']):
+            logging.debug("trying to discover: %s", image_name)
             default_config = self._find_plugin_configuration(image_name)
             if not default_config:
+                logging.debug("couldn't discover for: %s", image_name)
                 continue
             name = default_config.pop('name')
             default_config['host'] = self._cli.hostname
