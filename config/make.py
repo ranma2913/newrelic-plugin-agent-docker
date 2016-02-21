@@ -28,6 +28,15 @@ def one(iterable):
         return
     return iterable[0]
 
+def fuzzy_in(text, iterable, ratio=90):
+    """
+    fuzzy searches inside an iterable
+    """
+    for item in iterable:
+        if fuzz.partial_ratio(text, item) > ratio:
+            return True
+    return False
+
 class DockerClient(docker.Client):
     def __init__(self, *args, **kwargs):
         super(DockerClient, self).__init__(*args, **kwargs)
@@ -39,7 +48,10 @@ class DockerClient(docker.Client):
         """
         gets an image by the name of the image
         """
-        image_id = [x['ImageID'] for x in self.containers if x['Image'] == image_name][0]
+        image_id = filter(lambda x: fuzzy_in(image_name, x['RepoTags']), self.images)[0]
+        # the following has been added in later versions of the docker api
+        # for now we only have the old, ugly way of getting the image id
+        # image_id = [x['ImageID'] for x in self.containers if x['Image'] == image_name][0]
         return self.get_image_by_id(image_id)
 
     def get_image_by_id(self, image_id):
