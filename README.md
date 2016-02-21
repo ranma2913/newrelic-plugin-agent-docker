@@ -23,6 +23,14 @@ that were configured by the user or will try to automatically monitor supported 
 docker run -d --net=host -v /var/run/docker.sock:/var/run/docker.sock:ro -e NEWRELIC_KEY="YOUR_KEY" gici/newrelic-plugin-agent-docker
 ```
 
+#### service discovery
+
+automatic service discovery is done in the following order:
+
+1. search for images tagged with "com.newrelic.plugin" and check if there's a default backend by that name 
+
+2. search for containers that are named like one of the default backends
+
 #### Attach custom backend configuration
 
   1. Create a mountable data directory `<data-dir>` on the host.
