@@ -58,7 +58,9 @@ class DockerClient(docker.Client):
         """
         get an image by its id
         """
-        image = one(filter(lambda x: x['Id'] == image_id, self.images))
+        if type(image_id) == dict:
+            image_id = image_id['Id']
+        image = one(filter(lambda x: x['Id'] in image_id, self.images))
         return image
 
     def image_labels(self, image_id):
