@@ -137,8 +137,18 @@ class AgentConfig(object):
             logging.debug("couldn't find public ports for container id: %s", container['Id'])
 
         container_name = container['Names'][0].strip("/")
-        default_config['name'] = "{container_name} @ {host}".format(host=default_config['host'],
-                                                                    container_name=container_name)
+
+        # lookup for docker label 'com.newrelic.plugin.servicename' if exist publish to newrelic with the label value
+        # if not exist use {container_name} @ {host}
+        # docker label : docker run .... --label com.newrelic.plugin.servicename=<SERVICE NAME> ....
+        lables = container['Labels']
+        service_name = lables.get('com.newrelic.plugin.servicename')
+        container_name = container['Names'][0].strip("/")
+        if service_name:
+                default_config['name'] = "{container_name}".format(container_name=service_name)
+        else:
+                default_config['name'] = "{container_name} @ {host}".format(host=default_config['host'],
+                                                                            container_name=container_name)
         if public_ports:
             default_config['port'] = int(public_ports[0]['HostPort'])
         logging.debug("generated default config for container id: %s: \n%s", container['Id'], pprint(default_config))
