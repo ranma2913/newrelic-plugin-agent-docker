@@ -2,15 +2,21 @@ FROM gici/python
 MAINTAINER Oded Lazar <odedlaz@gmail.com>
 
 # needed packages
-RUN apt-get update && apt-get install -y -qq supervisor libpq-dev && \
+RUN apt-get update && apt-get install -y -qq supervisor libpq-dev git && \
     rm -rf /var/lib/apt/lists/*
+
+RUN git clone git@github.com:ShaharLevin/newrelic-plugin-agent.git /tmp/newrelic
 
 # newrelic-plugin-agent requirements
 RUN pip install psycopg2 \
-    newrelic-plugin-agent \
     docker-py \
     fuzzywuzzy \
-    python-Levenshtein
+    python-Levenshtein \
+    python-json-logger
+
+RUN python /tmp/newrelic/setup.py install
+
+#newrelic-plugin-agent
 
 # supervisor
 RUN mkdir -p /etc/supervisor/conf.d/ && \
