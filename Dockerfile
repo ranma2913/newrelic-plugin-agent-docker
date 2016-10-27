@@ -5,7 +5,7 @@ MAINTAINER Oded Lazar <odedlaz@gmail.com>
 RUN apt-get update && apt-get install -y -qq supervisor libpq-dev git && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git clone git@github.com:ShaharLevin/newrelic-plugin-agent.git /tmp/newrelic
+RUN git clone https://github.com/ShaharLevin/newrelic-plugin-agent.git /tmp/newrelic
 
 # newrelic-plugin-agent requirements
 RUN pip install psycopg2 \
@@ -14,7 +14,7 @@ RUN pip install psycopg2 \
     python-Levenshtein \
     python-json-logger
 
-RUN python /tmp/newrelic/setup.py install
+RUN cd /tmp/newrelic/; python /tmp/newrelic/setup.py install
 
 #newrelic-plugin-agent
 
