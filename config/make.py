@@ -32,9 +32,10 @@ def fuzzy_in(text, iterable, ratio=90):
     """
     fuzzy searches inside an iterable
     """
-    for item in iterable:
-        if fuzz.partial_ratio(text, item) > ratio:
-            return True
+    if iterable:
+        for item in iterable:
+            if fuzz.partial_ratio(text, item) > ratio:
+                return True
     return False
 
 class DockerClient(docker.Client):
@@ -48,11 +49,12 @@ class DockerClient(docker.Client):
         """
         gets an image by the name of the image
         """
-        image_id = filter(lambda x: fuzzy_in(image_name, x['RepoTags']), self.images)[0]
+        image_id = filter(lambda x: fuzzy_in(image_name, x['RepoTags']), self.images)
         # the following has been added in later versions of the docker api
         # for now we only have the old, ugly way of getting the image id
-        # image_id = [x['ImageID'] for x in self.containers if x['Image'] == image_name][0]
-        return self.get_image_by_id(image_id)
+        # image_id = [x['ImageID'] for x in self.containers if x['Image'] == image_name]
+        if image_id:
+            return self.get_image_by_id(image_id[0])
 
     def get_image_by_id(self, image_id):
         """
@@ -181,11 +183,10 @@ class AgentConfig(object):
             if fuzz.partial_ratio(plugin_name, default_config['name']) > 90:
                 return default_config
 
-    def _find_plugin_configuration(self, image_name):
+    def _find_plugin_configuration(self, image_name, image):
         """
         try to find the plugin using its image name
         """
-        image = self._cli.get_image_by_name(image_name)
         if not image:
             logging.debug("couldn't find image %s by name", image_name)
             return
@@ -207,7 +208,12 @@ class AgentConfig(object):
         containers = sorted(self._cli.containers, key=lambda c: c['Image'])
         for image_name, containers in groupby(containers, key=lambda c: c['Image']):
             logging.debug("trying to discover: %s", image_name)
-            default_config = self._find_plugin_configuration(image_name)
+            containers = list(containers)
+            if 'ImageID' in containers[0]:
+                image = self._cli.get_image_by_id(containers[0]['ImageID'])
+            else:
+                image = self._cli.get_image_by_name(image_name)
+            default_config = self._find_plugin_configuration(image_name, image)
             if not default_config:
                 logging.debug("couldn't discover for: %s", image_name)
                 continue
