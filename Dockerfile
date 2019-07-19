@@ -16,20 +16,18 @@ RUN pip install psycopg2==2.6.2 \
 RUN mkdir -p /etc/supervisor/conf.d/ && \
     mkdir -p /var/log/supervisor/
 
-ADD supervisor/supervisord.conf /etc/supervisor/supervisord.conf
-ADD supervisor/supervisord-*.conf /etc/supervisor/conf.d/
+COPY supervisor/supervisord.conf /etc/supervisor/supervisord.conf
+COPY supervisor/supervisord-*.conf /etc/supervisor/conf.d/
 
 # newrelic-plugin-agent
-ADD newrelic-plugin-agent-discover.sh run.py /etc/newrelic/
-ADD config/newrelic-plugin-agent.cfg config/make.py /etc/newrelic/config/
+COPY newrelic-plugin-agent-discover.sh run.py /etc/newrelic/
+COPY config/newrelic-plugin-agent.cfg config/make.py /etc/newrelic/config/
 
 # add default configurations
-ADD defaults /etc/newrelic/defaults/
-ADD plugins /etc/newrelic/plugins/
+COPY defaults /etc/newrelic/defaults/
+COPY plugins /etc/newrelic/plugins/
 WORKDIR "/etc/newrelic"
 
-# VOLUME ["/etc/newrelic/backends"]
-
-COPY /backends /etc/newrelic/backends
+VOLUME ["/etc/newrelic/backends"]
 
 CMD ["supervisord"]
