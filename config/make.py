@@ -110,7 +110,7 @@ class AgentConfig(object):
         self._cli = DockerClient("unix://var/run/docker.sock", version="auto")
         self._config = yaml.load(file(os.path.join(args.dir,
                                                    AgentConfig.CONFIG_FILE),
-                                      "r"))
+                                      "r"), Loader=yaml.FullLoader)
 
     def __str__(self):
         return pprint(self._config)
@@ -122,7 +122,7 @@ class AgentConfig(object):
         for path in glob.glob("%s/*.yml" % os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH)):
             with open(os.path.join(self._base_dir, AgentConfig.DEFAULTS_PATH, path), "r") as f:
                 logging.debug("loading %s from %s", path, f.name)
-                default_config = yaml.load(f)
+                default_config = yaml.load(f, Loader=yaml.FullLoader)
                 name, _ = os.path.splitext(os.path.basename(path))
                 default_config['name'] = name
                 yield default_config
@@ -236,7 +236,7 @@ class AgentConfig(object):
                                     path)
             with open(filepath) as f:
                 name, _ = os.path.splitext(os.path.basename(path))
-                conf = yaml.load(f)
+                conf = yaml.load(f, Loader=yaml.FullLoader)
                 base[name] = conf if isinstance(conf, list) else [conf]
                 logging.debug("loaded base backend %s: \n%s",
                               path,
