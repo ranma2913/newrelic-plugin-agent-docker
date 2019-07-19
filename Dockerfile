@@ -28,6 +28,8 @@ ADD defaults /etc/newrelic/defaults/
 ADD plugins /etc/newrelic/plugins/
 WORKDIR "/etc/newrelic"
 
-VOLUME ["/etc/newrelic/backends"]
+# VOLUME ["/etc/newrelic/backends"]
+
+COPY /backends /etc/newrelic/backends
 
 CMD ["supervisord"]
