@@ -1,6 +1,6 @@
 name: httpd
 scheme: http
-host: localhost
+host: httpd
 verify_ssl_cert: false
 port: 80
 path: /server-status
